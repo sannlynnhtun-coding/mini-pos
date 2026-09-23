@@ -1,3 +1,10 @@
+@using BlazorWasm.MiniPOS.Reports
+@using Pysar.Blazor
+@using Pysar.Export
+@using Pysar.Viewer.Zoom
+@inject IReportPrinter ReportPrinter
+@inject IReportExportService ReportExporter
+
 @if (Type == EnumFormType.List)
 {
     <div class="space-y-8 animate-fade-in max-w-[1200px] mx-auto pb-8">
@@ -86,32 +93,55 @@
 }
 else if (Type == EnumFormType.Report)
 {
-    <div class="max-w-xl mx-auto space-y-6 animate-slide-up pb-12">
-        <div class="flex items-center justify-between">
+    <div class="max-w-6xl mx-auto space-y-6 animate-slide-up pb-12">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <button @onclick="Back" class="btn btn-ghost text-xs uppercase tracking-widest font-bold">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                Audit Log
+                Back to sales
             </button>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button @onclick="PrintThermalAsync" disabled="@_isReportBusy" class="btn btn-secondary text-xs uppercase tracking-widest font-bold">
+                    Print 80mm
+                </button>
+                <button @onclick="ToggleA4Preview" disabled="@_isReportBusy" class="btn btn-secondary text-xs uppercase tracking-widest font-bold">
+                    @(_showA4Preview ? "Hide A4 Preview" : "A4 Preview")
+                </button>
+                <button @onclick="PrintA4Async" disabled="@_isReportBusy" class="btn btn-secondary text-xs uppercase tracking-widest font-bold">
+                    Print A4
+                </button>
+                <button @onclick="DownloadA4Async" disabled="@_isReportBusy" class="btn btn-primary text-xs uppercase tracking-widest font-bold">
+                    @(_isReportBusy ? "Preparing..." : "Download A4 PDF")
+                </button>
+            </div>
         </div>
 
-        <div class="bg-card rounded-lg border border-border shadow-lg relative overflow-hidden">
+        @if (!string.IsNullOrWhiteSpace(_reportError))
+        {
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">
+                @_reportError
+            </div>
+        }
+
+        <div class="max-w-xl mx-auto bg-card rounded-lg border border-border shadow-lg relative overflow-hidden">
             <div class="rounded-lg border border-border bg-card">
+                <div id="thermal-receipt" class="thermal-receipt">
                 <!-- Receipt Header -->
-                <div class="px-10 pt-10 pb-8 border-b border-dashed border-border text-center">
-                    <div class="w-16 h-16 bg-primary text-primary-foreground mx-auto rounded-lg flex items-center justify-center mb-6 shadow-md shadow-primary/20">
+                <div class="thermal-header px-10 pt-10 pb-8 border-b border-dashed border-border text-center">
+                    <div class="thermal-logo w-16 h-16 bg-primary text-primary-foreground mx-auto rounded-lg flex items-center justify-center mb-6 shadow-md shadow-primary/20">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                     <h3 class="text-2xl font-bold text-foreground tracking-tight">MiniPOS Store</h3>
                     <p class="text-[10px] text-primary font-bold uppercase tracking-widest mt-2">Verified Sale Receipt</p>
-                    
-                    <div class="grid grid-cols-2 gap-4 mt-10">
-                        <div class="bg-muted/50 p-4 rounded-lg border border-border flex flex-col items-start">
+
+                    <div class="thermal-meta grid grid-cols-2 gap-4 mt-10">
+                        <div class="thermal-meta-item bg-muted/50 p-4 rounded-lg border border-border flex flex-col items-start">
                             <span class="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Voucher No</span>
                             <span class="text-xs font-bold text-foreground font-mono">
                                 #@(SelectedHead?.sale_voucher_no.ToString().Substring(0, 8) ?? "--------")
                             </span>
                         </div>
-                        <div class="bg-muted/50 p-4 rounded-lg border border-border flex flex-col items-start">
+                        <div class="thermal-meta-item bg-muted/50 p-4 rounded-lg border border-border flex flex-col items-start">
                             <span class="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Timestamp</span>
                             <span class="text-xs font-bold text-foreground">@DateTime.ToString("MMM dd, yyyy • HH:mm")</span>
                         </div>
@@ -119,17 +149,17 @@ else if (Type == EnumFormType.Report)
                 </div>
 
                 <!-- Receipt Items -->
-                <div class="px-10 py-8 space-y-6">
+                <div class="thermal-items px-10 py-8 space-y-6">
                     @if (Detail?.Any() == true)
                     {
                         @foreach (var item in Detail)
                         {
-                            <div class="flex justify-between items-start">
+                            <div class="thermal-line flex justify-between items-start">
                                 <div class="flex-1">
-                                    <p class="text-sm font-bold text-foreground leading-tight">@item.product_name</p>
-                                    <p class="text-muted-foreground text-[10px] font-bold mt-1 uppercase tracking-wider">@item.product_qty  &times;  @item.product_price.ToString("N0")</p>
+                                    <p class="thermal-line-name text-sm font-bold text-foreground leading-tight">@item.product_name</p>
+                                    <p class="thermal-line-detail text-muted-foreground text-[10px] font-bold mt-1 uppercase tracking-wider">@item.product_qty  &times;  @item.product_price.ToString("N0")</p>
                                 </div>
-                                <div class="font-bold text-foreground text-sm text-right ml-4">
+                                <div class="thermal-line-amount font-bold text-foreground text-sm text-right ml-4">
                                     @((item.product_price * item.product_qty).ToString("N0"))
                                 </div>
                             </div>
@@ -145,7 +175,7 @@ else if (Type == EnumFormType.Report)
                 </div>
 
                 <!-- Receipt Total -->
-                <div class="px-10 pb-12 pt-8 border-t border-dashed border-border bg-muted/20">
+                <div class="thermal-total px-10 pb-12 pt-8 border-t border-dashed border-border bg-muted/20">
                     <div class="flex justify-between items-center">
                         <span class="text-xs font-bold text-muted-foreground uppercase tracking-widest">Grand Total</span>
                         <div class="text-right">
@@ -155,6 +185,8 @@ else if (Type == EnumFormType.Report)
                             <span class="text-[10px] font-bold text-primary/70 ml-1 uppercase">MMK</span>
                         </div>
                     </div>
+                    <p class="thermal-thanks mt-8 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Thank you for shopping with us</p>
+                </div>
                 </div>
             </div>
             
@@ -162,6 +194,22 @@ else if (Type == EnumFormType.Report)
             <div class="absolute left-0 top-[312px] w-4 h-8 bg-background rounded-r-full border-y border-r border-border -ml-[2px] z-10"></div>
             <div class="absolute right-0 top-[312px] w-4 h-8 bg-background rounded-l-full border-y border-l border-border -mr-[2px] z-10"></div>
         </div>
+
+        @if (_showA4Preview && _a4PreviewReport is not null)
+        {
+            <section class="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-border bg-muted/30">
+                    <h3 class="font-bold text-foreground">A4 invoice preview</h3>
+                    <p class="text-xs text-muted-foreground mt-1">Rendered by Pysar. Use the toolbar above to print or download the vector PDF.</p>
+                </div>
+                <div class="h-[70vh] min-h-[520px] bg-muted/40">
+                    <ReportView Report="@_a4PreviewReport"
+                                ZoomMode="@ReportZoomMode.FitWidth"
+                                PageSpacing="24"
+                                RenderFailed="HandleReportRenderFailure" />
+                </div>
+            </section>
+        }
     </div>
 }
 
@@ -173,6 +221,11 @@ else if (Type == EnumFormType.Report)
     private SaleVoucherHeadDataModel? SelectedHead { get; set; }
     private EnumFormType Type { get; set; } = EnumFormType.List;
     private DateTime DateTime { get; set; }
+    private InvoiceReportModel? _invoice;
+    private Pysar.Elements.Report? _a4PreviewReport;
+    private bool _showA4Preview;
+    private bool _isReportBusy;
+    private string? _reportError;
 
     [Parameter]
     public EventCallback<SaleVoucherHeadDataModel> OnDetailClick { get; set; }
@@ -192,6 +245,10 @@ else if (Type == EnumFormType.Report)
         SelectedHead = data;
         DateTime = data.sale_date;
         Detail = await db.GetVoucherDetail(data.sale_voucher_head_id);
+        _invoice = InvoiceReportModel.From(data, Detail);
+        _a4PreviewReport = null;
+        _showA4Preview = false;
+        _reportError = null;
         await OnDetailClick.InvokeAsync(data);
     }
 
@@ -199,6 +256,97 @@ else if (Type == EnumFormType.Report)
     {
         Type = EnumFormType.List;
         SelectedHead = null;
+        Detail = new();
+        _invoice = null;
+        _a4PreviewReport = null;
+        _showA4Preview = false;
+        _reportError = null;
         await OnBackClick.InvokeAsync();
+    }
+
+    private async Task PrintThermalAsync()
+    {
+        await RunReportActionAsync(async () =>
+        {
+            var printed = await JsRuntime.InvokeAsync<bool>(
+                "miniPosReports.printThermalReceipt",
+                "thermal-receipt",
+                $"Receipt {ShortVoucherNumber()}");
+
+            if (!printed)
+                throw new InvalidOperationException("The thermal receipt preview could not be found.");
+        });
+    }
+
+    private void ToggleA4Preview()
+    {
+        if (_invoice is null)
+            return;
+
+        _reportError = null;
+        _showA4Preview = !_showA4Preview;
+        if (_showA4Preview)
+            _a4PreviewReport = A4InvoiceReportFactory.Create(_invoice);
+    }
+
+    private async Task PrintA4Async()
+    {
+        await RunReportActionAsync(async () =>
+        {
+            var report = CreateA4Report();
+            await ReportPrinter.PrintAsync(report);
+        });
+    }
+
+    private async Task DownloadA4Async()
+    {
+        await RunReportActionAsync(async () =>
+        {
+            var report = CreateA4Report();
+            var pdf = await ReportExporter.ExportAsync(report, ExportFormat.Pdf);
+            await JsRuntime.InvokeVoidAsync(
+                "miniPosReports.downloadFile",
+                $"invoice-{ShortVoucherNumber()}.pdf",
+                "application/pdf",
+                pdf);
+        });
+    }
+
+    private Pysar.Elements.Report CreateA4Report()
+        => A4InvoiceReportFactory.Create(
+            _invoice ?? throw new InvalidOperationException("Select a sale before creating an invoice."));
+
+    private async Task RunReportActionAsync(Func<Task> action)
+    {
+        if (_isReportBusy)
+            return;
+
+        _isReportBusy = true;
+        _reportError = null;
+
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            _reportError = $"Report generation failed: {exception.Message}";
+        }
+        finally
+        {
+            _isReportBusy = false;
+        }
+    }
+
+    private Task HandleReportRenderFailure(Exception exception)
+    {
+        _reportError = $"A4 preview failed: {exception.Message}";
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private string ShortVoucherNumber()
+    {
+        var voucher = SelectedHead?.sale_voucher_no.ToString("N") ?? "sale";
+        return voucher[..Math.Min(voucher.Length, 12)];
     }
 }

@@ -327,3 +327,105 @@ window.renderHighchartsFunnel = function (containerId, title, seriesData) {
         }]
     });
 };
+
+window.miniPosReports = {
+    printThermalReceipt: function (elementId, documentTitle) {
+        const source = document.getElementById(elementId);
+        if (!source) return false;
+
+        const frame = document.createElement("iframe");
+        frame.setAttribute("aria-hidden", "true");
+        frame.style.position = "fixed";
+        frame.style.right = "0";
+        frame.style.bottom = "0";
+        frame.style.width = "0";
+        frame.style.height = "0";
+        frame.style.border = "0";
+        document.body.appendChild(frame);
+
+        const printWindow = frame.contentWindow;
+        const printDocument = printWindow && printWindow.document;
+        if (!printWindow || !printDocument) {
+            frame.remove();
+            return false;
+        }
+
+        const safeTitle = String(documentTitle || "MiniPOS receipt")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+
+        printDocument.open();
+        printDocument.write(`<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${safeTitle}</title>
+    <style>
+        @page { size: 80mm auto; margin: 0; }
+        @font-face { font-family: "Noto Sans Myanmar"; src: url("fonts/NotoSansMyanmar.ttf") format("truetype"); font-weight: 100 900; font-style: normal; }
+        * { box-sizing: border-box; }
+        html, body { width: 80mm; margin: 0; padding: 0; background: #fff; color: #000; }
+        body { font-family: "Noto Sans Myanmar", Arial, sans-serif; font-size: 10pt; }
+        .thermal-receipt { width: 72mm; margin: 0 auto; padding: 4mm 3mm 5mm; }
+        .thermal-header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 3mm; }
+        .thermal-logo { width: 12mm; height: 12mm; margin: 0 auto 2mm; display: flex; align-items: center; justify-content: center; border: 1px solid #000; border-radius: 2mm; }
+        .thermal-logo svg { width: 7mm; height: 7mm; }
+        .thermal-header h3 { margin: 0; font-size: 15pt; }
+        .thermal-header > p { margin: 1mm 0 0; font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; }
+        .thermal-meta { display: grid; grid-template-columns: 1fr; gap: 1.5mm; margin-top: 3mm; text-align: left; }
+        .thermal-meta-item { display: flex; flex-direction: column; padding: 2mm; border: 1px solid #999; border-radius: 1mm; }
+        .thermal-meta-item span:first-child { font-size: 7pt; text-transform: uppercase; }
+        .thermal-meta-item span:last-child { margin-top: .5mm; font-size: 8.5pt; font-weight: 700; overflow-wrap: anywhere; }
+        .thermal-items { padding: 3mm 0; }
+        .thermal-line { display: flex; justify-content: space-between; align-items: flex-start; gap: 2mm; padding: 1.5mm 0; border-bottom: 1px dotted #aaa; }
+        .thermal-line > div:first-child { min-width: 0; flex: 1; }
+        .thermal-line-name { margin: 0; font-size: 9pt; font-weight: 700; overflow-wrap: anywhere; }
+        .thermal-line-detail { margin: .5mm 0 0; font-size: 7.5pt; }
+        .thermal-line-amount { white-space: nowrap; font-weight: 700; }
+        .thermal-total { border-top: 1px dashed #000; padding-top: 3mm; }
+        .thermal-total > div { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; }
+        .thermal-total > div > span:first-child { font-size: 8pt; font-weight: 700; text-transform: uppercase; }
+        .thermal-total > div > div > span:first-child { font-size: 16pt; font-weight: 800; }
+        .thermal-total > div > div > span:last-child { font-size: 8pt; font-weight: 700; }
+        .thermal-thanks { margin: 4mm 0 0; text-align: center; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; }
+    </style>
+</head>
+<body>${source.outerHTML}</body>
+</html>`);
+        printDocument.close();
+
+        const cleanup = () => window.setTimeout(() => frame.remove(), 250);
+        printWindow.onafterprint = cleanup;
+        window.setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+            window.setTimeout(() => {
+                if (frame.isConnected) frame.remove();
+            }, 30000);
+        }, 150);
+
+        return true;
+    },
+
+    downloadFile: function (fileName, contentType, content) {
+        let bytes = content;
+        if (typeof content === "string") {
+            const binary = atob(content);
+            bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        } else if (!(content instanceof Uint8Array)) {
+            bytes = new Uint8Array(content);
+        }
+
+        const blob = new Blob([bytes], { type: contentType || "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName || "download";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+};

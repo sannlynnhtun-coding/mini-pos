@@ -4,6 +4,8 @@ using Blazored.LocalStorage;
 using Blazored.SessionStorage;
 using BlazorWasm.MiniPOS;
 using BlazorWasm.MiniPOS.Services;
+using Pysar.Blazor;
+using Pysar.Core.Enums;
 
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -26,4 +28,21 @@ builder.Services.AddScoped<IDbService, AppDbService>();
 builder.Services.AddScoped<DataSeederService>();
 
 builder.Services.AddSingleton<ChartStateContainer>();
-await builder.Build().RunAsync();
+builder.Services.AddPysar();
+
+var host = builder.Build();
+var http = host.Services.GetRequiredService<HttpClient>();
+var reportFiles = await PreloadedFileSystem.FetchAsync(http, [
+    "fonts/NotoSansMyanmar.ttf"
+]);
+var reportPlatform = WasmPlatformHandler.Install(reportFiles);
+reportPlatform.FontCollection.AddFont(
+    "fonts/NotoSansMyanmar.ttf",
+    "MiniPosMyanmar",
+    FontStyle.Normal);
+reportPlatform.FontCollection.AddFont(
+    "fonts/NotoSansMyanmar.ttf",
+    "MiniPosMyanmar",
+    FontStyle.Bold);
+
+await host.RunAsync();
