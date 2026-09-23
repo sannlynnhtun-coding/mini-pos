@@ -19,7 +19,19 @@ async function onInstall(event) {
         .filter(asset => offlineAssetsInclude.some(pattern => pattern.test(asset.url)))
         .filter(asset => !offlineAssetsExclude.some(pattern => pattern.test(asset.url)))
         .map(asset => new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' }));
-    await caches.open(cacheName).then(cache => cache.addAll(assetsRequests));
+    const cache = await caches.open(cacheName);
+
+    // A single transient download must not prevent a new worker from activating.
+    // Missing entries fall back to the network in onFetch.
+    await Promise.all(assetsRequests.map(async request => {
+        try {
+            await cache.add(request);
+        } catch (error) {
+            console.warn(`Service worker: Could not cache ${request.url}`, error);
+        }
+    }));
+
+    await self.skipWaiting();
 }
 
 async function onActivate(event) {
@@ -30,6 +42,8 @@ async function onActivate(event) {
     await Promise.all(cacheKeys
         .filter(key => key.startsWith(cacheNamePrefix) && key !== cacheName)
         .map(key => caches.delete(key)));
+
+    await self.clients.claim();
 }
 
 async function onFetch(event) {
