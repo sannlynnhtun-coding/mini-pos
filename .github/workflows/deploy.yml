@@ -16,22 +16,22 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 10.0.x
 
     - name: Setup Node
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: BlazorWasm.MiniPOS/package-lock.json
 
     - name: Install JS dependencies
-      run: |
-        cd BlazorWasm.MiniPOS
-        npm install
+      working-directory: BlazorWasm.MiniPOS
+      run: npm ci
 
     - name: Run Build Scripts
-      run: |
-        cd BlazorWasm.MiniPOS
-        npm run build
+      working-directory: BlazorWasm.MiniPOS
+      run: npm run build
 
     - name: Restore dependencies
       run: dotnet restore
@@ -49,10 +49,9 @@ jobs:
 
     - name: Deploy to Vercel
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-      uses: amondnet/vercel-action@v25
-      with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-        vercel-args: '--prod'
-        working-directory: ./release/wwwroot
+      working-directory: ./release/wwwroot
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      run: npx --yes vercel@latest --prod --yes --token="$VERCEL_TOKEN"
