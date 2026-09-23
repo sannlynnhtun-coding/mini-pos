@@ -5,6 +5,12 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+		<!-- Keep the SkiaSharp native archive selection deterministic on Windows and Linux CI. -->
+		<WasmBuildNative>true</WasmBuildNative>
+		<WasmEnableThreads>false</WasmEnableThreads>
+		<WasmEnableSIMD>true</WasmEnableSIMD>
+		<ShouldIncludeNativeSkiaSharp>false</ShouldIncludeNativeSkiaSharp>
+		<EmccExtraLDFlags>$(EmccExtraLDFlags) -s USE_WEBGL2=1</EmccExtraLDFlags>
 	</PropertyGroup>
 
 	<!--<Target Name="PreBuild" BeforeTargets="PreBuildEvent">-->
@@ -33,6 +39,11 @@
 		<PackageReference Include="Pysar" Version="0.1.56" />
 		<PackageReference Include="Pysar.Blazor" Version="0.1.56" />
 		<PackageReference Include="SkiaSharp.NativeAssets.WebAssembly" Version="4.151.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- SkiaSharp's automatic native reference was omitted by the Ubuntu publish used for Vercel. -->
+		<NativeFileReference Include="$(SkiaSharpStaticLibraryPath)/3.1.56/st,simd/*.a" />
 	</ItemGroup>
 
 	<ItemGroup>

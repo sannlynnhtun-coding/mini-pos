@@ -43,6 +43,14 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       run: dotnet publish BlazorWasm.MiniPOS/BlazorWasm.MiniPOS.csproj -c Release -o release
 
+    - name: Verify SkiaSharp native runtime
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      shell: bash
+      run: |
+        native_wasm="$(find release/wwwroot/_framework -maxdepth 1 -name 'dotnet.native.*.wasm' -print -quit)"
+        test -n "$native_wasm"
+        grep --binary-files=text --quiet 'sk_colortype_get_default_8888' "$native_wasm"
+
     - name: Copy vercel.json to publish output
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       run: cp vercel.json release/wwwroot/
